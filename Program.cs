@@ -56,6 +56,9 @@ namespace octocli.net
                 case 2:
                     TeamOptions();
                     return true;
+                case 3:
+                    RepositoryOptions();
+                    return true;
                 default:
                     // done executing
                     return false;
@@ -67,6 +70,7 @@ namespace octocli.net
             Console.WriteLine("\\\\\\\\ GitHub Management Options ////");
             Console.WriteLine("\t1. Manage a user");
             Console.WriteLine("\t2. Manage a team");
+            Console.WriteLine("\t3. Manage repositories");
         }
 
         static void UserOptions()
@@ -129,19 +133,34 @@ namespace octocli.net
 
             Console.WriteLine("Team management options: ");
             Console.WriteLine("1. Add user/s");
+            Console.WriteLine("2. Add repositories");
 
-            if (1 == Convert.ToInt32(Console.ReadLine()))
+            switch(Convert.ToInt32(Console.ReadLine()))
             {
-                Console.WriteLine("Enter user/s to add to the team. For multiple users, use a comma separated list");
-                Console.WriteLine("Note: only users in the org will be added.");
-                TeamAddUsers(Console.ReadLine(), teams[teamIndex]);
+                case 1:
+                    Console.WriteLine("Enter user/s to add to the team. For multiple users, use a comma separated list");
+                    Console.WriteLine("Note: only users in the org will be added.");
+                    TeamAddUsers(Console.ReadLine(), teams[teamIndex]);
+                    break;
+                case 2:
+                    Console.WriteLine("Enter the repositories to add to the team. For multiple repositories, use a comma separated list");
+                    TeamAddRepositories(Console.ReadLine(), teams[teamIndex]);
+                    break;
+                default:
+                    break;
             }
+            
         }
 
         static void TeamAddUsers(string users, Team team)
         {
             foreach (string user in users.Split(","))
             {
+                if (string.IsNullOrWhiteSpace(user))
+                {
+                    continue;
+                }
+
                 bool isMember = github.Organization.Member.CheckMember(org, user.Trim()).Result;
                 if (!isMember)
                 {
@@ -151,6 +170,48 @@ namespace octocli.net
 
                 UpdateTeamMembership membershipOptions = new UpdateTeamMembership(TeamRole.Member);
                 github.Organization.Team.AddOrEditMembership(team.Id, user.Trim(), membershipOptions);
+            }
+        }
+
+        static void TeamAddRepositories(string repositories, Team team)
+        {
+            RepositoryPermissionRequest permissionRequest = new RepositoryPermissionRequest(Permission.Pull); // does not actually correspond to permission options in github
+
+            foreach(var repo in repositories.Split(","))
+            {
+                if (string.IsNullOrWhiteSpace(repo))
+                {
+                    continue;
+                }
+
+                github.Organization.Team.AddRepository(team.Id, org, repo);
+            }
+        }
+
+        static void RepositoryOptions()
+        {
+            Console.WriteLine("Repository options:");
+            Console.WriteLine("1. List repositories in org");
+
+            if (1 == Convert.ToInt32(Console.ReadLine()))
+            {
+                var repos = github.Repository.GetAllForOrg(org).Result;
+                Console.WriteLine($"Repos in org {org}");
+                foreach(var repo in repos)
+                {
+                    Console.WriteLine($"{repo.FullName}");
+                }
+
+                Console.WriteLine("\n\nDo you want to output this list for use? (y/n)");
+
+                if (Console.ReadLine().Equals("y", StringComparison.CurrentCultureIgnoreCase))
+                {
+                    Console.WriteLine("Writing to ./repos-out.txt");
+                    StringBuilder sb = new StringBuilder();
+                    sb.AppendJoin(',', repos.Select(r => r.Name));
+
+                    File.WriteAllText("./repos-out.txt", sb.ToString());
+                }
             }
         }
     }
